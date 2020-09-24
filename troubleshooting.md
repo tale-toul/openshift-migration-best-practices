@@ -4,8 +4,8 @@
 
 This section describes common troubleshooting procedures.
 
-* **[MTC Data Model](#mtc-data-model)**
-* **[Debugging Tips](#debugging-tips)**
+* **[MTC data model](#mtc-data-model)**
+* **[Debugging tips](#debugging-tips)**
 * **[Using `must-gather`](#using-must-gather)**
 * **[Performance metrics](#performance-metrics)**
 * **[Cleaning up a failed migration](#cleaning-up-a-failed-migration)**
@@ -17,10 +17,10 @@ Upstream doc for improving debug experience
 Debug flowchart (in progress)
 * [MTC Debug flowchart](https://app.lucidchart.com/documents/view/d0907ce1-ccf1-4226-86eb-e5332f9d42a4/0_0)
 
-# MTC Data Model
+# MTC data model
 
 The following is a diagram of the CRDs that make up the MTC data model for context.
-Each of these objects are standard k8s CRDs, and the user can therefore use the
+Each of these objects are standard Kubernetes CRDs, and the user can therefore use the
 normal REST CRUD operations for acting on then via the kubectl and oc clients,
 or even the HTTP interface directly:
 
@@ -28,30 +28,33 @@ TODO: Need to update diagram with MigAnalytic and MigHook
 
 ![CRD Architecture](./images/CRDArch.png)
 
-# Debugging Tips
+# Debugging tips
 
-The MTC UI includes a "View migration plan resources" menu item for visualizing
-a migration plan and its associated resources as a migration is running. This is
-a good place to start when investigating failures, and provides both the cli
-`oc get` command, as well as a raw object viewer the user can use to inspect
-the resource.
+You can view migration plan resources in the MTC web console:
+
+1. Click the Options menu beside a migration plan and select **View migration plan resources**.
+
+    The migration plan resources are displayed as a tree.
+   
+2. Click the Copy button to copy the `oc get <resource>` command.
+
+3. Click **View Raw** to inspect the resource.
 
 ![Resource Debug Kebab Option](./images/ResourceDebugKebabOption.png)
 
 ![Debug Tree UI](./images/DebugTree.png)
 
-Typically the objects that you are interested in depends on the stage that the
-migration failed during. The flow chart linked above provides more information
-about what objects are relevant depending on this failure stage.
+Typically, the objects that you are interested in depend on the stage at which the
+migration failed. The [MTC debug flowchart](https://app.lucidchart.com/documents/view/d0907ce1-ccf1-4226-86eb-e5332f9d42a4/0_0) provides information about what objects are relevant depending on this failure stage.
 
 > NOTE: Stage migrations will only have a single pair of Backup and Restore objects,
 > while a Final migration will have *two* pairs of Backup and Restore objects.
 > This can be considered a low level implementation detail, but the initial
 > backup is performed to capture the original, unaltered state of the application
-> and its k8s objects and remains the source of truth. The application is then
-> quiesced, and a stage backup is performed to back up the application storage
+> and its Kubernetes objects. It is the source of truth. The application is then
+> quiesced and a stage backup is performed to back up the storage-
 > related resources (PV, PVC, the data itself). These storage objects are restored
-> on the target side, followed by a final restore to restore from the original
+> on the target cluster, followed by a final restore to restore from the original
 > application's source of truth.
 
 ## Querying the cli
@@ -60,9 +63,9 @@ The migration debug tree can be viewed and traced via label selectors. For examp
 to retrieve all migmigrations that are associated with a particular plan:
 
 ```
-# oc get migmigration -l 'migration.openshift.io/migplan-name=test'
-NAME                                   READY   PLAN   STAGE   ITINERARY   PHASE
-09a8bf20-fdc5-11ea-a447-cb5249018d21           test   false   Final       Completed
+$ oc get migmigration -l 'migration.openshift.io/migplan-name=test'
+NAME                                  READY  PLAN  STAGE  ITINERARY  PHASE
+09a8bf20-fdc5-11ea-a447-cb5249018d21         test  false  Final      Completed
 ```
 
 Notice the columns show select useful information about the migration, such as
@@ -81,7 +84,7 @@ $ oc adm must-gather --image=registry.redhat.io/rhcam-1-2/openshift-migration-mu
 
 ## Previewing metrics on local Prometheus server
 
-must-gather can be used to produce a dump of the last day of metrics data,
+`must-gather` can be used to produce a dump of the last day of metrics data,
 which can then be viewed with a local Prometheus instance following the
 instructions in the [konveyor must-gather repo](https://github.com/konveyor/must-gather#preview-metrics-on-local-prometheus-server).
 
@@ -93,17 +96,17 @@ including a [set of useful queries](https://github.com/konveyor/mig-operator/blo
 
 # Cleaning up a failed migration
 
-## Failed migration, how to clean up and retry
-Ensure stage pods have been cleaned up.  If a migration fails during stage or copy,
-the 'stage' pods will be retained to allow debugging.  Before proceeding with a
+## Deleting resources
+
+Ensure stage pods have been cleaned up. If a migration fails during stage or copy,
+the 'stage' pods will be retained to allow debugging. Before proceeding with a
 reattempt of the migration the stage pods need to be manually removed.
 
-## Scale a quiesced application back
+## Unquiescing an application
 
-If the migrated source application was quiesced during your migration,
-you will also need to scale it back to its initial replica count. This can be
-done manually by editing the deployment primitive (Deployment, DeploymentConfig, etc.)
-and setting the `spec.replicas` field back to the original, non-zero value:
+If your application was quiesced during migration, you should unquiesce it by scaling it back to its initial replica count.
+
+This can be done manually by editing the deployment primitive (Deployment, DeploymentConfig, etc.) and setting the `spec.replicas` field back to its original, non-zero value:
 
 ```
 $ oc edit deployment <deployment_name>
